@@ -12,4 +12,5 @@ RUN rm /etc/nginx/sites-available/default
 RUN rm /etc/nginx/sites-enabled/default
 COPY galactic-nginx.conf /etc/nginx/conf.d/galactic-nginx.conf
 EXPOSE 80
-RUN nginx
+ENTRYPOINT nginx && cd /data/ts/ && tsc --watch
+

@@ -1,6 +1,7 @@
 ///<reference path="Space/Planet.ts"/>
 ///<reference path="../www/phaser-2.4.3/typescript/phaser.d.ts"/>
 ///<reference path="Moving.ts"/>
+///<reference path="Player.ts"/>
 
 interface Window {
     game: GalacticWinds;
@@ -17,6 +18,10 @@ class GalacticWinds {
     needsUpdate: Array<NeedsUpdate> = [];
     selected = null;
     public dispatcher : Dispatcher;
+    visiblePlanets: Phaser.Group;
+    visibleFleets: Phaser.Group;
+    ui : Phaser.Group;
+    localPlayer : Player;
 
     constructor(){
         this.moving = [];
@@ -31,6 +36,7 @@ class GalacticWinds {
             return false;
         }
         this.dispatcher = new Dispatcher( this );
+        this.localPlayer = new LocalPlayer();
     }
 
     preload(){
@@ -42,15 +48,20 @@ class GalacticWinds {
     }
 
     create(){
-        this.game.world.setBounds( 0, 0, this.worldWidth, this.worldHeight );
+        this.game.world.setBounds( 0, 0, this.worldWidth, this.worldHeight );        
         var background = new Background( this , Background.SPACEBACKGROUND);
         background.add();
+
+        this.visiblePlanets = this.game.add.group();
+        this.visibleFleets = this.game.add.group();
+        this.ui = this.game.add.group();
+        
         this.background = background;
         this.dispatcher.createShip(Fleet.SHIP_BLUE, 50, 100 )
         this.dispatcher.createShip(Fleet.SHIP_ORANGE, 100, 50 )
         this.dispatcher.createPlanet( Planet.TYPE_EARTH, 200,200 );
 
-
+        var miniMap = new Minimap( this );
     }
 
     update(){
@@ -147,7 +158,8 @@ class Fleet extends Phaser.Sprite implements Ship, NeedsUpdate, Movable, Positio
     setDirection( p ){
         this.direction = p;
         this.isMoving = true;
-        var da = this.direction.angle({x: -1, y: 0 }, false ) + 3.14/2;
+        var unit = new Phaser.Point( - 1, 1 );
+        var da = this.direction.angle( unit, false ) + 3.14/2;
         this.rotation = da;
     }
 
@@ -161,6 +173,7 @@ class Fleet extends Phaser.Sprite implements Ship, NeedsUpdate, Movable, Positio
             var dist = this.target.distance( new Phaser.Point( this.x, this.y ) );
             if ( dist < 10 ){
                 this.isMoving = false;
+                this._game.dispatcher.arrivedAtTarget( this, <any>this.target );
             }
         }
     }
@@ -185,8 +198,8 @@ class Selector{
     }
 }
 
-class Background{
-    static SPACEBACKGROUND = "/images/spacebackground.jpg";
+class Background {
+    static SPACEBACKGROUND = "images/spacebackground.jpg";
     public sprite;
     constructor( private game:GalacticWinds, private key : string ){
 
@@ -263,16 +276,22 @@ class Dispatcher {
          this.move( this.game.selected, x, y );
     }
 
-    public createObject( ){
-        
-        
+    public moveToTarget( what: Movable, target : Targetable ){
+        console.log( "Movingto target", target );
+        this.move( what, target.getX(), target.getY() );
+    }
+
+    public arrivedAtTarget( what: Movable, target: Targetable ){
+         if ( what instanceof Fleet ){
+            console.log("It a sheeep");
+         }
     }
 
     public createShip( textureType: string, x:number, y:number ){
         var ship = new Fleet( this.game, textureType );
         this.game.ships.push( ship );
         this.game.needsUpdate.push(ship);
-        this.game.game.add.existing( ship );
+        this.game.visibleFleets.add( ship );
         ship.setX( x );
         ship.setY( y );
     }
@@ -299,6 +318,12 @@ class Dispatcher {
         console.log("clicked")
     }
 
+    public planetClicked( planet: Planet, pointer ){
+        if( this.game.selected ){
+         this.moveToTarget( this.game.selected, planet);
+        }
+    }
+
     public createPlanet( typeName : string , x, y ) {
          var p = new Planet( this.game, typeName );
          p.setX( x );
@@ -306,12 +331,16 @@ class Dispatcher {
     }
 }
 
-class Planet implements Positionable {
+class Planet implements Positionable, Targetable {
     public static  TYPE_EARTH="planet_earth.png";
     public sprite;
 
-    constructor( game: GalacticWinds, typeName:string ) {
-        this.sprite = game.game.add.sprite(25,25,typeName );
+    constructor( private game: GalacticWinds, typeName:string ) {
+        this.sprite = new Phaser.Sprite( game.game, 25,25,typeName );
+        game.visiblePlanets.add( this.sprite );
+        this.sprite.inputEnabled =true;
+        this.sprite.events.onInputDown.add( this.onClick.bind( this ) );
+        this.sprite.anchor.set( 0.5, 0.5 );
     }
 
     setX(x){
@@ -320,4 +349,20 @@ class Planet implements Positionable {
     setY(y){
         this.sprite.y = y;
     }
+
+    getX(){
+        return this.sprite.x;
+    }
+    getY(){
+        return this.sprite.y;
+    }
+
+    public onClick( game, pointer ) {
+         this.game.dispatcher.planetClicked( this, pointer );
+    }
+}
+
+interface Targetable {
+    getX():number;
+    getY():number;
 }

@@ -1,6 +1,59 @@
+var LocalPlayer = (function () {
+    function LocalPlayer() {
+        this.name = "Local Player";
+    }
+    return LocalPlayer;
+})();
+var Ui = (function () {
+    function Ui() {
+    }
+    return Ui;
+})();
+var Minimap = (function () {
+    function Minimap(game) {
+        this.game = game;
+        this.mapWidth = 200;
+        this.mapHeight = 130;
+        this.bottomMargin = 20;
+        this.mapPart = this.game.game.add.graphics(game.game.width / 2 - this.mapWidth / 2, game.game.height - this.mapHeight - this.bottomMargin, game.ui);
+        var graphics = this.mapPart;
+        graphics.beginFill(0x111111);
+        graphics.lineStyle(5, 0x333333, 1);
+        // draw a shape
+        graphics.moveTo(0, 0);
+        graphics.lineTo(this.mapWidth, 0);
+        graphics.lineTo(this.mapWidth, this.mapHeight);
+        graphics.lineTo(0, this.mapHeight);
+        //graphics.lineTo(50, 220);
+        // graphics.lineTo(50, 50);
+        graphics.endFill();
+        this.drawPlanetAt(3, 10, 0x555);
+        this.drawPlanetAt(12, 30, 0x23435);
+        this.drawPlanetAt(100, 55, 0x55555);
+        this.drawPlanetAt(44, 99, 0x555);
+    }
+    Minimap.prototype.drawPlanetAt = function (x, y, color) {
+        this.mapPart.lineStyle(1, 0xffffff, 1);
+        this.mapPart.drawRect(x, y, 1, 1);
+    };
+    Minimap.prototype.update = function () {
+    };
+    return Minimap;
+})();
+var UnitDisplay = (function () {
+    function UnitDisplay() {
+    }
+    return UnitDisplay;
+})();
+var Messages = (function () {
+    function Messages() {
+    }
+    return Messages;
+})();
 ///<reference path="Space/Planet.ts"/>
 ///<reference path="../www/phaser-2.4.3/typescript/phaser.d.ts"/>
 ///<reference path="Moving.ts"/>
+///<reference path="Player.ts"/>
 var __extends = (this && this.__extends) || function (d, b) {
     for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p];
     function __() { this.constructor = d; }
@@ -27,6 +80,7 @@ var GalacticWinds = (function () {
             return false;
         };
         this.dispatcher = new Dispatcher(this);
+        this.localPlayer = new LocalPlayer();
     }
     GalacticWinds.prototype.preload = function () {
         this.game.load.image('logo', '/phaser-2.4.3/resources/Phaser Logo/2D Text/Phaser 2D Glow.png');
@@ -39,10 +93,14 @@ var GalacticWinds = (function () {
         this.game.world.setBounds(0, 0, this.worldWidth, this.worldHeight);
         var background = new Background(this, Background.SPACEBACKGROUND);
         background.add();
+        this.visiblePlanets = this.game.add.group();
+        this.visibleFleets = this.game.add.group();
+        this.ui = this.game.add.group();
         this.background = background;
         this.dispatcher.createShip(Fleet.SHIP_BLUE, 50, 100);
         this.dispatcher.createShip(Fleet.SHIP_ORANGE, 100, 50);
         this.dispatcher.createPlanet(Planet.TYPE_EARTH, 200, 200);
+        var miniMap = new Minimap(this);
     };
     GalacticWinds.prototype.update = function () {
         var game = this.game;
@@ -112,7 +170,8 @@ var Fleet = (function (_super) {
     Fleet.prototype.setDirection = function (p) {
         this.direction = p;
         this.isMoving = true;
-        var da = this.direction.angle({ x: -1, y: 0 }, false) + 3.14 / 2;
+        var unit = new Phaser.Point(-1, 1);
+        var da = this.direction.angle(unit, false) + 3.14 / 2;
         this.rotation = da;
     };
     Fleet.prototype.doUpdate = function (elapsed) {
@@ -124,6 +183,7 @@ var Fleet = (function (_super) {
             var dist = this.target.distance(new Phaser.Point(this.x, this.y));
             if (dist < 10) {
                 this.isMoving = false;
+                this._game.dispatcher.arrivedAtTarget(this, this.target);
             }
         }
     };
@@ -160,7 +220,7 @@ var Background = (function () {
     Background.prototype.onClick = function (sprite, pointer) {
         this.game.dispatcher.backgroundClicked(pointer);
     };
-    Background.SPACEBACKGROUND = "/images/spacebackground.jpg";
+    Background.SPACEBACKGROUND = "images/spacebackground.jpg";
     return Background;
 })();
 var GameMap = (function () {
@@ -197,13 +257,20 @@ var Dispatcher = (function () {
     Dispatcher.prototype.moveSelected = function (x, y) {
         this.move(this.game.selected, x, y);
     };
-    Dispatcher.prototype.createObject = function () {
+    Dispatcher.prototype.moveToTarget = function (what, target) {
+        console.log("Movingto target", target);
+        this.move(what, target.getX(), target.getY());
+    };
+    Dispatcher.prototype.arrivedAtTarget = function (what, target) {
+        if (what instanceof Fleet) {
+            console.log("It a sheeep");
+        }
     };
     Dispatcher.prototype.createShip = function (textureType, x, y) {
         var ship = new Fleet(this.game, textureType);
         this.game.ships.push(ship);
         this.game.needsUpdate.push(ship);
-        this.game.game.add.existing(ship);
+        this.game.visibleFleets.add(ship);
         ship.setX(x);
         ship.setY(y);
     };
@@ -226,6 +293,11 @@ var Dispatcher = (function () {
         ship.selector = g;
         console.log("clicked");
     };
+    Dispatcher.prototype.planetClicked = function (planet, pointer) {
+        if (this.game.selected) {
+            this.moveToTarget(this.game.selected, planet);
+        }
+    };
     Dispatcher.prototype.createPlanet = function (typeName, x, y) {
         var p = new Planet(this.game, typeName);
         p.setX(x);
@@ -235,13 +307,27 @@ var Dispatcher = (function () {
 })();
 var Planet = (function () {
     function Planet(game, typeName) {
-        this.sprite = game.game.add.sprite(25, 25, typeName);
+        this.game = game;
+        this.sprite = new Phaser.Sprite(game.game, 25, 25, typeName);
+        game.visiblePlanets.add(this.sprite);
+        this.sprite.inputEnabled = true;
+        this.sprite.events.onInputDown.add(this.onClick.bind(this));
+        this.sprite.anchor.set(0.5, 0.5);
     }
     Planet.prototype.setX = function (x) {
         this.sprite.x = x;
     };
     Planet.prototype.setY = function (y) {
         this.sprite.y = y;
+    };
+    Planet.prototype.getX = function () {
+        return this.sprite.x;
+    };
+    Planet.prototype.getY = function () {
+        return this.sprite.y;
+    };
+    Planet.prototype.onClick = function (game, pointer) {
+        this.game.dispatcher.planetClicked(this, pointer);
     };
     Planet.TYPE_EARTH = "planet_earth.png";
     return Planet;
