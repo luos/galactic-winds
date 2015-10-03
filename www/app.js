@@ -16,22 +16,34 @@ var Minimap = (function () {
         this.mapHeight = 130;
         this.bottomMargin = 20;
         this.mapPart = this.game.game.add.graphics(game.game.width / 2 - this.mapWidth / 2, game.game.height - this.mapHeight - this.bottomMargin, game.ui);
+        this.draw();
+    }
+    Minimap.prototype.draw = function () {
+        this.mapPart.clear();
+        this.drawBorders();
+        this.drawPoints();
+    };
+    Minimap.prototype.drawBorders = function () {
         var graphics = this.mapPart;
         graphics.beginFill(0x111111);
         graphics.lineStyle(5, 0x333333, 1);
-        // draw a shape
         graphics.moveTo(0, 0);
         graphics.lineTo(this.mapWidth, 0);
         graphics.lineTo(this.mapWidth, this.mapHeight);
         graphics.lineTo(0, this.mapHeight);
-        //graphics.lineTo(50, 220);
-        // graphics.lineTo(50, 50);
         graphics.endFill();
-        this.drawPlanetAt(3, 10, 0x555);
-        this.drawPlanetAt(12, 30, 0x23435);
-        this.drawPlanetAt(100, 55, 0x55555);
-        this.drawPlanetAt(44, 99, 0x555);
-    }
+    };
+    Minimap.prototype.drawPoints = function () {
+        var _this = this;
+        var scaleX = this.mapWidth / this.game.worldWidth;
+        var scaleY = this.mapHeight / this.game.worldHeight;
+        this.game.planets.forEach(function (planet, index) {
+            _this.drawPlanetAt(planet.getX() * scaleX, planet.getY() * scaleY, 0x555);
+        });
+        this.game.ships.forEach(function (ship, index) {
+            _this.drawPlanetAt(ship.getX() * scaleX, ship.getY() * scaleY, 0x555);
+        });
+    };
     Minimap.prototype.drawPlanetAt = function (x, y, color) {
         this.mapPart.lineStyle(1, 0xffffff, 1);
         this.mapPart.drawRect(x, y, 1, 1);
@@ -68,6 +80,7 @@ var GalacticWinds = (function () {
         this.ships = [];
         this.needsUpdate = [];
         this.selected = null;
+        this.planets = [];
         this.moving = [];
         this.game = new Phaser.Game(window.innerWidth, window.innerHeight, Phaser.AUTO, 'content', {
             preload: this.preload,
@@ -100,7 +113,7 @@ var GalacticWinds = (function () {
         this.dispatcher.createShip(Fleet.SHIP_BLUE, 50, 100);
         this.dispatcher.createShip(Fleet.SHIP_ORANGE, 100, 50);
         this.dispatcher.createPlanet(Planet.TYPE_EARTH, 200, 200);
-        var miniMap = new Minimap(this);
+        this.minimap = new Minimap(this);
     };
     GalacticWinds.prototype.update = function () {
         var game = this.game;
@@ -123,6 +136,7 @@ var GalacticWinds = (function () {
         for (var i = 0; i < this.needsUpdate.length; i++) {
             this.needsUpdate[i].doUpdate(elapsed);
         }
+        this.minimap.draw();
     };
     return GalacticWinds;
 })();
@@ -300,6 +314,7 @@ var Dispatcher = (function () {
     };
     Dispatcher.prototype.createPlanet = function (typeName, x, y) {
         var p = new Planet(this.game, typeName);
+        this.game.planets.push(p);
         p.setX(x);
         p.setY(y);
     };

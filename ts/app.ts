@@ -14,7 +14,7 @@ class GalacticWinds {
     moving: Array<Moving> = [];
     map: GameMap;
     private background;
-    ships: Array<Ship> = [];
+    ships: Array<Fleet> = [];
     needsUpdate: Array<NeedsUpdate> = [];
     selected = null;
     public dispatcher : Dispatcher;
@@ -22,6 +22,8 @@ class GalacticWinds {
     visibleFleets: Phaser.Group;
     ui : Phaser.Group;
     localPlayer : Player;
+    minimap : Minimap;
+    planets : Array<Planet> = [];
 
     constructor(){
         this.moving = [];
@@ -61,7 +63,7 @@ class GalacticWinds {
         this.dispatcher.createShip(Fleet.SHIP_ORANGE, 100, 50 )
         this.dispatcher.createPlanet( Planet.TYPE_EARTH, 200,200 );
 
-        var miniMap = new Minimap( this );
+        this.minimap = new Minimap( this );
     }
 
     update(){
@@ -92,6 +94,7 @@ class GalacticWinds {
         for( var i=0; i < this.needsUpdate.length ; i++){
             this.needsUpdate[i].doUpdate( elapsed );
         }
+        this.minimap.draw();
     }
 
 }
@@ -326,6 +329,7 @@ class Dispatcher {
 
     public createPlanet( typeName : string , x, y ) {
          var p = new Planet( this.game, typeName );
+         this.game.planets.push( p );
          p.setX( x );
          p.setY( y );
     }
